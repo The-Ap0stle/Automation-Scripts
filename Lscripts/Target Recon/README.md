@@ -36,5 +36,5 @@ sudo chmod +x /usr/bin/recon.sh
 ```
 - Run the script :
 ```
-.\recon.sh
+recon.sh
 ```

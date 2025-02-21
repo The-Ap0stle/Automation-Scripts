@@ -12,5 +12,5 @@ sudo chmod +x /usr/bin/monitor.sh
 ```
 - Run the script :
 ```
-.\monitor.sh
+monitor.sh
 ```
