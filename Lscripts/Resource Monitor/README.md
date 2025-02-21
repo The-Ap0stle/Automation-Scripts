@@ -4,7 +4,7 @@ Bash script that gives resource updates like listing unresponsive processes, out
 ## Usage 
 - Save the recon script : 
 ```
-sudo curl -o /usr/bin/monitor.sh https://raw.githubusercontent.com/The-Ap0stle/Automation-Scripts/refs/heads/main/Lscripts/Target%20Recon/recon.sh
+sudo curl -o /usr/bin/monitor.sh https://raw.githubusercontent.com/The-Ap0stle/Automation-Scripts/refs/heads/main/Lscripts/Resource%20Monitor/monitor.sh
 ```
 - Make the script executable :
 ```
