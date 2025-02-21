@@ -28,7 +28,7 @@ sudo curl -o /usr/bin/rec.py https://raw.githubusercontent.com/The-Ap0stle/Recuz
 ## Usage 
 - Save the recon script : 
 ```
-sudo curl -o /usr/bin/recon.sh 
+sudo curl -o /usr/bin/recon.sh https://raw.githubusercontent.com/The-Ap0stle/Automation-Scripts/refs/heads/main/Lscripts/Target%20Recon/recon.sh
 ```
 - Make the script executable :
 ```
