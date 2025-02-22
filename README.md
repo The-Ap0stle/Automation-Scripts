@@ -6,3 +6,4 @@ Windows and Linux scripts for automation
 
 ## WINDOWS
 - [Resource Monitor](https://github.com/The-Ap0stle/Automation-Scripts/blob/main/Wsripts/Resource%20Monitor/README.md)
+- [Browser Credential Grabber](https://github.com/The-Ap0stle/Automation-Scripts/blob/main/Wsripts/Browser%20Credential%20Grabber/README.md)
