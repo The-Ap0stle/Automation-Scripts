@@ -82,7 +82,6 @@ Dependencies and file location for effecient scanning :
 ```
 sudo mv ~/go/bin/* /usr/bin
 ```
-
 ## Usage 
 - Save the recon script : 
 ```
@@ -96,3 +95,5 @@ sudo chmod +x /usr/bin/recon.sh
 ```
 recon.sh domain.com
 ```
+## Tuning
+- We can configure the scripts using flags like '-rl' in Nuclei for rate limiting, '-b domain.com' in Dalfox to verify external requesting in cases of blind XSS. 
