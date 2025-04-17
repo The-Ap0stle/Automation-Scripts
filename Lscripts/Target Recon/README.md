@@ -3,6 +3,7 @@ Reconaissance script used for enumerating subdomains, JS files, API's and perfor
 
 ## Prerequisites
 Install following tools for the script :
+
 1] Subfinder : 
 ```
 go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
@@ -74,7 +75,7 @@ Dependencies and file location for effecient scanning :
 	cd jsbeautifier-1.15.4
 	sudo python3 setup.py install
   ```
-	- Install rest using pipx : 
+- Install rest using pipx : 
   ```
   pipx install requests && pipx instal requests_file && pipx install lxml
   ```
