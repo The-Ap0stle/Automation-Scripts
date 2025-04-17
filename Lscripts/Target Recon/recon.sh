@@ -1,88 +1,94 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# Prompt for required inputs
-while true; do
-    read -rp "Enter the URL: " url
-    if [[ -n "$url" ]]; then
-        break
-    else
-        echo "No URL found. Please enter a URL."
-    fi
-done
-while true; do
-    read -rp "Enter Wordlist Path: " wordlist_path
-    if [[ -f "$wordlist_path" ]]; then
-        break
-    else
-        echo "Invalid file path. Please enter a valid wordlist path."
-    fi
-done
+# ─── CONFIG ──────────────────────────────────────────────────────
+RED="\033[1;31m"
+GREEN="\033[1;32m"
+YELLOW="\033[1;33m"
+NC="\033[0m"
+DOMAIN="$1"
+OUT_DIR="output/$DOMAIN"
 
-read -rp "Enter Match Text (leave blank to include all results): " match_text
-read -rp "Enter Subdirectory Recursion Depth (default: 3): " recursion_depth
-recursion_depth=${recursion_depth:-3}  # Default to 3 if not provided
-
-# Create output directory with timestamp
-output_dir="recon_$(date +%Y%m%d_%H%M%S)"
-mkdir -p "$output_dir"
-
-# Subdomain enumeration and filtering
-echo "[+] Starting subdomain enumeration..."
-if [[ -n "$match_text" ]]; then
-    ( subfinder -d "$url" & assetfinder --subs-only "$url" & curl -s "https://crt.sh/?q=%.$url&output=json" | jq -r '.[].name_value' ) 2>/dev/null | grep "$match_text" | sort -u > "$output_dir/subdomains.txt"
-else
-    ( subfinder -d "$url" & assetfinder --subs-only "$url" & curl -s "https://crt.sh/?q=%.$url&output=json" | jq -r '.[].name_value' ) 2>/dev/null | sort -u > "$output_dir/subdomains.txt"
+# ─── CHECK ARGS ──────────────────────────────────────────────────
+if [ -z "$DOMAIN" ]; then
+    echo -e "${RED}Usage: $0 <domain>${NC}"
+    exit 1
 fi
 
-# Subdomain validation and extraction
-echo "[+] Validating subdomains..."
-( httpx -l "$output_dir/subdomains.txt" -title -sc -silent -o "$output_dir/subdomain_act.txt" & 
-  cat "$output_dir/subdomains.txt" | xargs -I {} host {} > "$output_dir/resolved_domains.txt" ) 2>/dev/null
+# ─── SETUP ───────────────────────────────────────────────────────
+setup_dirs() {
+    mkdir -p "$OUT_DIR"/{subdomains,dns,httpx,web,params,vulns,secrets,wordlists,nmap}
+}
 
-wait
-sleep 5
+GF_PATTERNS=(xss sqli ssrf lfi rce idor)
 
-# Clean status codes from subdomain_act.txt
-sed 's/ \[.*\]//g' $output_dir/subdomain_act.txt > $output_dir/subdomain_act_clean.txt
 
-# Run int.py for directory fuzzing
-echo "[+] Starting directory fuzzing with..."
-python3 /usr/bin/rec.py -w "$wordlist_path" -r "$output_dir/subdomain_act_clean.txt" -c "$recursion_depth" -o "$output_dir/fuzzing_results" 2>/dev/null
+# ─── SUBDOMAIN ENUMERATION ──────────────────────────────────────
+subdomain_enum() {
+    echo -e "${YELLOW}[+] Enumerating Subdomains...${NC}"
+    subfinder -d "$DOMAIN" -all -silent | sort -u > "$OUT_DIR/subdomains/subfinder.txt"
+    assetfinder --subs-only "$DOMAIN" | sort -u > "$OUT_DIR/subdomains/assetfinder.txt"
+    amass enum -passive -d "$DOMAIN" -o "$OUT_DIR/subdomains/amass.txt"
 
-# Extract JS files from subdomains
-echo "[+] Extracting JavaScript files..."
-katana -list "$output_dir/subdomain_act_clean.txt" | grep -i "\.js$" > "$output_dir/js_files.txt" 2>/dev/null
+    sort -u "$OUT_DIR/subdomains/assetfinder.txt" "$OUT_DIR/subdomains/subfinder.txt" > "$OUT_DIR/subdomains/final.txt" && rm -rf "$OUT_DIR/subdomains/assetfinder.txt" "$OUT_DIR/subdomains/subfinder.txt"
+     
+}
 
-# Extract JavaScript files from fuzzing results
-for ((i=1; i<=$recursion_depth; i++)); do
-    result_file="$output_dir/fuzzing_results/depth_${i}_200.txt"
-    if [[ -f "$result_file" ]]; then
-        echo "[+] Processing JavaScript files from depth $i..."
-        # Clean status codes if present in the result files
-        sed 's/ \[.*\]//g' "$result_file" | katana -list - | grep -i "\.js$" >> "$output_dir/js_files.txt" 2>/dev/null
-    fi
-done
+# ─── DNS + HTTP PROBE ───────────────────────────────────────────
+dns_and_http_probe() {
+    echo -e "${YELLOW}[+] Resolving DNS & Probing HTTP...${NC}"
+    dnsx -l "$OUT_DIR/subdomains/final.txt" -silent | sort -u > "$OUT_DIR/dns/resolved.txt"
+    httpx -l "$OUT_DIR/dns/resolved.txt" -silent | sort -u > "$OUT_DIR/dns/alive.txt"
+}
 
-# Sort and deduplicate JavaScript files
-sort -u "$output_dir/js_files.txt" -o "$output_dir/js_files.txt"
+# ─── WEB RECON ──────────────────────────────────────────────────
+web_recon() {
+    echo -e "${YELLOW}[+] Crawling + JS Enumeration...${NC}"
+    katana -list "$OUT_DIR/dns/alive.txt" -silent -d 15 -jc -jsl -o "$OUT_DIR/web/katana.txt"
+    gau "$DOMAIN" > "$OUT_DIR/web/gau.txt"
+    waymore -i "$DOMAIN" -mode U -oU "$OUT_DIR/web/waymore.txt"
+    jsfinder -l "$OUT_DIR/dns/alive.txt" -s -o "$OUT_DIR/web/jsfinder.txt"
+    cat "$OUT_DIR/web/"*.txt | sort -u | sed -E 's|(.*\.js)\?.*|\1|' > "$OUT_DIR/web/all_urls.txt"
+    cat "$OUT_DIR/web/all_urls.txt" | grep -E '\.js$' | sort -u > "$OUT_DIR/web/jsfiles.txt"
+    sort -u "$OUT_DIR/web/all_urls.txt" "$OUT_DIR/dns/alive.txt" > "$OUT_DIR/params/gf_ready.txt"
+}
 
-# Extract APIs using Mantra
-echo "[+] Extracting APIs from JavaScript files..."
-cat "$output_dir/js_files.txt" | mantra > "$output_dir/api.txt" 2>/dev/null
+# ─── PARAMETER DISCOVERY ────────────────────────────────────────
+param_discovery() {
+    echo -e "${YELLOW}[+] Running GF Pattern Matching...${NC}"
+    for pattern in "${GF_PATTERNS[@]}"; do
+        cat "$OUT_DIR/params/gf_ready.txt" | gf "$pattern" | sort -u > "$OUT_DIR/params/${pattern}.txt"
+    done
+}
 
-# Cleanup temporary files
-rm -rf "$output_dir/subdomain_act_clean.txt"
+# ─── VULNERABILITY DISCOVERY ────────────────────────────────────
+vuln_discovery() {
+    echo -e "${YELLOW}[+] Scanning for Vulnerabilities...${NC}"
+    nuclei -list "$OUT_DIR/dns/alive.txt" -silent -o "$OUT_DIR/vulns/nuclei.txt" -as
+    dalfox file "$OUT_DIR/params/xss.txt" -o "$OUT_DIR/vulns/dalfox_raw.txt"
+    sort -u "$OUT_DIR/vulns/dalfox_raw.txt" > "$OUT_DIR/vulns/dalfox.txt"
+    sqlmap -m "$OUT_DIR/params/sqli.txt" --batch --level=5 --random-agent --output-dir="$OUT_DIR/vulns/sqlmap"
+}
 
-# Generate summary report
-echo "Reconnaissance Summary"
-echo "====================="
-echo "Target URL: $url"
-echo "Timestamp: $(date)"
-echo ""
-echo "Statistics:"
-echo "- Total subdomains found: $(wc -l < "$output_dir/subdomains.txt")"
-echo "- Active subdomains: $(wc -l < "$output_dir/subdomain_act.txt")"
-echo "- JavaScript files discovered: $(wc -l < "$output_dir/js_files.txt")"
-echo "- APIs identified: $(wc -l < "$output_dir/api.txt")"
+# ─── SECRET HUNTING ─────────────────────────────────────────────
+secret_hunting() {
+    echo -e "${YELLOW}[+] Searching for Secrets...${NC}"
+    python3 /usr/bin/SecretFinder.py -i "$OUT_DIR/web/jsfiles.txt" -o cli | sort -u > "$OUT_DIR/secrets/secretfinder.txt"
+    trufflehog filesystem "$OUT_DIR/web" --json | jq -c . | sort -u > "$OUT_DIR/secrets/trufflehog.json"
+    cat "$OUT_DIR/web/jsfiles.txt" | mantra -s > "$OUT_DIR/secrets/mantra.txt"
+}
 
-echo "[+] Reconnaissance completed. Results saved in: $(pwd)/$output_dir"
+
+# ─── MASTER FUNCTION ────────────────────────────────────────────
+main() {
+    setup_dirs
+    subdomain_enum
+    dns_and_http_probe
+    web_recon
+    param_discovery
+    vuln_discovery
+    secret_hunting
+
+    echo -e "${GREEN}[*] Recon Complete. Output saved in $OUT_DIR${NC}"
+}
+
+main
