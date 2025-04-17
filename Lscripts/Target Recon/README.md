@@ -67,6 +67,7 @@ curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scr
 go install github.com/Brosck/mantra@latest
 ```
 - Dependencies and file location for effecient scanning :
+
 1] Requirements for SecretFinder : We can cd into secretfinder and use 'pip install requirements.tx' but if it shows error and needs venv, use the following steps.
 	- Install JSbeautifier : 
   ```
