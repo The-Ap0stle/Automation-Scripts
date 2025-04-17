@@ -7,9 +7,9 @@ YELLOW="\e[93m"
 BLUE="\e[94m"
 RESET="\e[0m"
 
-LOG_FILE="troubleshoot_report.txt"
+LOG_FILE="monitor_report.txt"
 
-echo -e "${BLUE}Gathering troubleshooting data... Please wait.${RESET}"
+echo -e "${BLUE}Gathering resource data... Please wait.${RESET}"
 echo "===== Troubleshoot Report - $(date) =====" > "$LOG_FILE"
 
 # 1. List unresponsive processes
